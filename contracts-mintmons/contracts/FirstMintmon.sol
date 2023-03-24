@@ -9,6 +9,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import "./FirstMintmonUriStorage.sol";
 
+interface Turnstile {
+    function register(address) external returns (uint256);
+}
+
 contract FirstMintmon is FirstMintmonUriStorage, EIP712, AccessControl, Ownable {
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -32,12 +36,16 @@ contract FirstMintmon is FirstMintmonUriStorage, EIP712, AccessControl, Ownable 
     event MintmonLevelUpdate(uint256 indexed _tokenId, string indexed _level);
     event MintmonImageAndLevelUpdate(uint256 indexed _tokenId, string indexed _level, string _image);
 
+    // CSR for Canto
+    Turnstile turnstile = Turnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
+
     constructor(address minter)
     ERC721("Mintmon", "MTM") 
     EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
       _setupRole(MINTER_ROLE, minter);
       _tokenId = 1;
       mintState = false;
+      turnstile.register(tx.origin);
     }
 
     function safeMint(uint8 num) public returns (uint256) {
