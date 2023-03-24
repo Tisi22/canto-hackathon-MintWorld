@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
@@ -8,20 +8,20 @@ import "./FirstMintmonUriStorage.sol";
 
 contract FirstMintmon is ERC721, ERC721Enumerable, FirstMintmonUriStorage, Ownable {
 
-    bool public mintSate;
+    bool public mintState;
     uint256 tokenId;
     
     mapping(address => bool) firstMintmonMinted;
 
     constructor() ERC721("MyToken", "MTK") {
-        mintSate = false;
+        mintState = false;
     }
 
     function safeMint(uint8 num) public returns (uint256) {
         require (mintState, "minting paused");
-        require(!firstMintmonMinted, "already minted");
+        require(!firstMintmonMinted[msg.sender], "already minted");
         require(num > 0, "Wrong arg num");
-        require(mun <= 4, "Wrong arg num");
+        require(num <= 4, "Wrong arg num");
 
         string memory name;
         string memory image;
@@ -65,25 +65,25 @@ contract FirstMintmon is ERC721, ERC721Enumerable, FirstMintmonUriStorage, Ownab
 
     // The following functions are overrides required by Solidity.
 
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
+    function _beforeTokenTransfer(address from, address to, uint256 _tokenId, uint256 batchSize)
         internal
         override(ERC721, ERC721Enumerable)
     {
         require(from == address(0), "Err: token transfer is BLOCKED");
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+        super._beforeTokenTransfer(from, to, _tokenId, batchSize);
     }
 
-    function _burn(uint256 tokenId) internal override(ERC721, FirstMintmonUriStorage) {
-        super._burn(tokenId);
+    function _burn(uint256 _tokenId) internal override {
+        super._burn(_tokenId);
     }
 
-    function tokenURI(uint256 tokenId)
+    function tokenURI(uint256 _tokenId)
         public
         view
         override(ERC721, FirstMintmonUriStorage)
         returns (string memory)
     {
-        return super.tokenURI(tokenId);
+        return super.tokenURI(_tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId)
