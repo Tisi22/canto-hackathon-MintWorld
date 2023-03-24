@@ -1,20 +1,43 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
+pragma abicoder v2;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import "./FirstMintmonUriStorage.sol";
 
-contract FirstMintmon is ERC721, ERC721Enumerable, FirstMintmonUriStorage, Ownable {
+contract FirstMintmon is FirstMintmonUriStorage, EIP712, AccessControl, Ownable {
+
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    string private constant SIGNING_DOMAIN = "Mintmon-Voucher";
+    string private constant SIGNATURE_VERSION = "1";
 
     bool public mintState;
-    uint256 tokenId;
+    uint256 _tokenId;
     
     mapping(address => bool) firstMintmonMinted;
+        struct NFTVoucher {
+        uint256 tokenId;
+        string name;
+        string level;
+        string image;
+        string tp;
+        string description;
+        bytes signature;
+    }
 
-    constructor() ERC721("MyToken", "MTK") {
-        mintState = false;
+    event MintmonLevelUpdate(uint256 indexed _tokenId, string indexed _level);
+    event MintmonImageAndLevelUpdate(uint256 indexed _tokenId, string indexed _level, string _image);
+
+    constructor(address minter)
+    ERC721("Mintmon", "MTM") 
+    EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION) {
+      _setupRole(MINTER_ROLE, minter);
+      _tokenId = 1;
+      mintState = false;
     }
 
     function safeMint(uint8 num) public returns (uint256) {
@@ -30,7 +53,7 @@ contract FirstMintmon is ERC721, ERC721Enumerable, FirstMintmonUriStorage, Ownab
 
         firstMintmonMinted[msg.sender] = true;
 
-        tokenId++;
+        _tokenId++;
 
         if(num == 1){
             name = "Firery"; 
@@ -57,41 +80,111 @@ contract FirstMintmon is ERC721, ERC721Enumerable, FirstMintmonUriStorage, Ownab
             description = "Windry; the small wind mintie. Its great mobility allows it to find home in many places. It seems to prefer mountains, and its friendly nature makes it easy for it to life with other minties.";
         }
 
-        _safeMint(msg.sender, tokenId-1);
-        _setTokenURI(tokenId-1,name,image,"2",tp, description);
+        _safeMint(msg.sender, _tokenId-1);
+        _setTokenURI(_tokenId-1,name,image,"2",tp, description);
 
-        return tokenId-1;
+        return _tokenId-1;
     }
 
-    // The following functions are overrides required by Solidity.
-
-    function _beforeTokenTransfer(address from, address to, uint256 _tokenId, uint256 batchSize)
-        internal
-        override(ERC721, ERC721Enumerable)
-    {
-        require(from == address(0), "Err: token transfer is BLOCKED");
-        super._beforeTokenTransfer(from, to, _tokenId, batchSize);
+    function setMintstate(bool val) public onlyOwner{
+        mintState = val;
     }
 
-    function _burn(uint256 _tokenId) internal override {
-        super._burn(_tokenId);
+      function levelUpdate(NFTVoucher calldata voucher) public {
+
+    // make sure signature is valid and get the address of the signer
+    address signer = _verify(voucher);
+
+    // make sure that the signer is authorized to mint NFTs
+    require(hasRole(MINTER_ROLE, signer), "Signature invalid or unauthorized");
+
+    _updateLevel(voucher.tokenId,  voucher.level);
+
+    emit MintmonLevelUpdate(voucher.tokenId,  voucher.level);
+
+  }
+
+  function imageAndLevelUpdate(NFTVoucher calldata voucher) public {
+
+    // make sure signature is valid and get the address of the signer
+    address signer = _verify(voucher);
+
+    // make sure that the signer is authorized to mint NFTs
+    require(hasRole(MINTER_ROLE, signer), "Signature invalid or unauthorized");
+
+    _updateImageAndLevel(voucher.tokenId,  voucher.image, voucher.level);
+
+    emit MintmonImageAndLevelUpdate(voucher.tokenId,  voucher.level, voucher.image);
+
+  }
+
+  /// @notice Returns a hash of the given NFTVoucher, prepared using EIP712 typed data hashing rules.
+  /// @param voucher An NFTVoucher to hash.
+  function _hash(NFTVoucher calldata voucher) internal view returns (bytes32) {
+    return _hashTypedDataV4(keccak256(abi.encode(
+      keccak256("NFTVoucher(uint256 tokenId,string name,string level,string image,string tp,string description)"),
+      voucher.tokenId,
+      keccak256(bytes(voucher.name)),
+      keccak256(bytes(voucher.level)),
+      keccak256(bytes(voucher.image)),
+      keccak256(bytes(voucher.tp)),
+      keccak256(bytes(voucher.description))
+    )));
+  }
+
+  /// @notice Returns the chain id of the current blockchain.
+  /// @dev This is used to workaround an issue with ganache returning different values from the on-chain chainid() function and
+  ///  the eth_chainId RPC method. See https://github.com/protocol/nft-website/issues/121 for context.
+  function getChainID() external view returns (uint256) {
+    uint256 id;
+    assembly {
+        id := chainid()
+    }
+    return id;
+  }
+
+  /// @notice Verifies the signature for a given NFTVoucher, returning the address of the signer.
+  /// @dev Will revert if the signature is invalid. Does not verify that the signer is authorized to mint NFTs.
+  /// @param voucher An NFTVoucher describing an unminted NFT.
+  function _verify(NFTVoucher calldata voucher) internal view returns (address) {
+    bytes32 digest = _hash(voucher);
+    return ECDSA.recover(digest, voucher.signature);
+  }
+
+  
+  /// @dev Returns all the tokenIds of a wallet
+  function walletOfOwner(address _owner)
+  public
+  view
+  returns (uint256[] memory)
+  {
+    uint256 ownerTokenCount = balanceOf(_owner);
+    uint256[] memory ownedTokenIds = new uint256[](ownerTokenCount);
+    uint256 currentTokenId = 1;
+    uint256 ownedTokenIndex = 0;
+
+    while (ownedTokenIndex < ownerTokenCount && currentTokenId <= totalSupply()) {
+      address currentTokenOwner = ownerOf(currentTokenId);
+
+      if (currentTokenOwner == _owner) {
+        ownedTokenIds[ownedTokenIndex] = currentTokenId;
+
+        ownedTokenIndex++;
+      }
+
+      currentTokenId++;
     }
 
-    function tokenURI(uint256 _tokenId)
-        public
-        view
-        override(ERC721, FirstMintmonUriStorage)
-        returns (string memory)
-    {
-        return super.tokenURI(_tokenId);
-    }
+    return ownedTokenIds;
+  
+  }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC721, ERC721Enumerable)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
-    }
+  function totalSupply() public view returns (uint256){
+    return _tokenId-1;
+  }
+
+  function supportsInterface(bytes4 interfaceId) public view virtual override (AccessControl, ERC721) returns (bool) {
+    return ERC721.supportsInterface(interfaceId) || AccessControl.supportsInterface(interfaceId);
+  }
+
 }
