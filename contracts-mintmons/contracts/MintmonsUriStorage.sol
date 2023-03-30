@@ -32,7 +32,7 @@ abstract contract MintmonsUriStorage is ERC721 {
                         '","description":"',data.description, 
                         '", "image": "', data.image,
                         '", "level": "', data.level,
-                        '", "tokenId": "', tokenId,
+                        '", "tokenId": "', Strings.toString(tokenId,
                         '","attributes": [ { "trait_type": "Type", "value": "',
                         data.tp,
                         '"}, { "trait_type": "Level", "value": ',
