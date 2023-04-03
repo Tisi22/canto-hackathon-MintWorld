@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Base64.sol";
@@ -10,9 +10,29 @@ abstract contract MintmonsUriStorage is ERC721 {
         string name;
         string image;  
         string level;
+        uint256 experience;
         string tp;
         string description;
+        string attack1;
+        string attack2;
+        string attack3;
+        string attack4;
     }
+
+    struct NFTVoucher {
+    uint256 tokenId;
+    string name;
+    string level;
+    uint256 experience;
+    string image;
+    string tp;
+    string description;
+    string attack1;
+    string attack2;
+    string attack3;
+    string attack4;
+    bytes signature;
+  }
 
     mapping (uint256 => DataURI) mintmonsURI;
 
@@ -32,11 +52,18 @@ abstract contract MintmonsUriStorage is ERC721 {
                         '","description":"',data.description, 
                         '", "image": "', data.image,
                         '", "level": "', data.level,
-                        '", "tokenId": "', Strings.toString(tokenId,
+                        '", "experience": "', Strings.toString(data.experience),
+                        '", "tokenId": "', Strings.toString(tokenId),
                         '","attributes": [ { "trait_type": "Type", "value": "',
                         data.tp,
-                        '"}, { "trait_type": "Level", "value": ',
-                        data.level,
+                        '"}, { "trait_type": "Attack_1", "value": ',
+                        data.attack1,
+                        '"}, { "trait_type": "Attack_2", "value": ',
+                        data.attack2,
+                        '"}, { "trait_type": "Attack_3", "value": ',
+                        data.attack3,
+                        '"}, { "trait_type": "Attack_4", "value": ',
+                        data.attack4,
                         "} ]}"
                     )
 
@@ -51,24 +78,32 @@ abstract contract MintmonsUriStorage is ERC721 {
         return output;
     }
 
-    function _setTokenURI(uint256 tokenId, string memory _name, string memory _image, string memory _level, string memory _tp, string memory _description) internal virtual {
+    function _setTokenURI(uint256 tokenId, NFTVoucher calldata voucher) internal virtual {
         require(_exists(tokenId), "Token ID does not exist");
-        mintmonsURI[tokenId].name = _name;
-        mintmonsURI[tokenId].image = _image;
-        mintmonsURI[tokenId].level = _level;
-        mintmonsURI[tokenId].tp = _tp;
-        mintmonsURI[tokenId].description = _description;
+        mintmonsURI[tokenId].name = voucher.name;
+        mintmonsURI[tokenId].image = voucher.image;
+        mintmonsURI[tokenId].level = voucher.level;
+        mintmonsURI[tokenId].experience = voucher.experience;
+        mintmonsURI[tokenId].tp = voucher.tp;
+        mintmonsURI[tokenId].description = voucher.description;
+        mintmonsURI[tokenId].attack1 = voucher.attack1;
+        mintmonsURI[tokenId].attack2 = voucher.attack2;
+        mintmonsURI[tokenId].attack3 = voucher.attack3;
+        mintmonsURI[tokenId].attack4 = voucher.attack4;
     }
 
-    function _updateLevel(uint256 tokenId,  string memory _level) internal virtual {
-        require(_exists(tokenId), "Token ID does not exist");
-        mintmonsURI[tokenId].level = _level;
-    }
-
-    function _updateImageAndLevel(uint256 tokenId,  string memory _image, string memory _level) internal virtual {
-        require(_exists(tokenId), "Token ID does not exist");
-        mintmonsURI[tokenId].image = _image;
-        mintmonsURI[tokenId].level = _level;
+    function _updateMetadata(NFTVoucher calldata voucher) internal virtual {
+        require(_exists(voucher.tokenId), "Token ID does not exist");
+        mintmonsURI[voucher.tokenId].name = voucher.name;
+        mintmonsURI[voucher.tokenId].image = voucher.image;
+        mintmonsURI[voucher.tokenId].level = voucher.level;
+        mintmonsURI[voucher.tokenId].experience = voucher.experience;
+        mintmonsURI[voucher.tokenId].tp = voucher.tp;
+        mintmonsURI[voucher.tokenId].description = voucher.description;
+        mintmonsURI[voucher.tokenId].attack1 = voucher.attack1;
+        mintmonsURI[voucher.tokenId].attack2 = voucher.attack2;
+        mintmonsURI[voucher.tokenId].attack3 = voucher.attack3;
+        mintmonsURI[voucher.tokenId].attack4 = voucher.attack4;
     }
  
 }

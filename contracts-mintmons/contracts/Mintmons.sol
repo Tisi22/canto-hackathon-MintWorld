@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity ^0.8;
+pragma solidity ^0.8.18;
 pragma abicoder v2;
 
 import "hardhat/console.sol";
@@ -10,9 +10,9 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import "./MintmonsUriStorage.sol";
 
-interface Turnstile {
+/*interface Turnstile {
     function register(address) external returns (uint256);
-}
+}*/
 
 contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
   bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -22,11 +22,10 @@ contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
   uint256 _tokenId;
   bool public mintState;
 
-  event MintmonLevelUpdate(uint256 indexed _tokenId, string indexed _level);
-  event MintmonImageAndLevelUpdate(uint256 indexed _tokenId, string indexed _level, string _image);
+  event MintmonMetadataUpdate(uint256 indexed _tokenId);
 
   // CSR for Canto
-  Turnstile turnstile = Turnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
+  //Turnstile turnstile = Turnstile(0xEcf044C5B4b867CFda001101c617eCd347095B44);
 
   constructor(address minter)
     ERC721("Mintmon", "MTM") 
@@ -34,18 +33,8 @@ contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
       _setupRole(MINTER_ROLE, minter);
       _tokenId = 1;
       mintState = true;
-      turnstile.register(tx.origin);
+      //turnstile.register(tx.origin);
     }
-
-  struct NFTVoucher {
-    uint256 tokenId;
-    string name;
-    string level;
-    string image;
-    string tp;
-    string description;
-    bytes signature;
-  }
 
 
   /// @notice Redeems an NFTVoucher for an actual NFT, creating it in the process.
@@ -61,12 +50,12 @@ contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
 
     _tokenId ++;
     _mint(redeemer, _tokenId-1);
-    _setTokenURI(_tokenId-1,voucher.name, voucher.image, voucher.level, voucher.tp, voucher.description);
+    _setTokenURI(_tokenId-1, voucher);
     
     return _tokenId-1;
   }
 
-  function levelUpdate(NFTVoucher calldata voucher) public {
+  function metadataUpdate(NFTVoucher calldata voucher) public {
 
     // make sure signature is valid and get the address of the signer
     address signer = _verify(voucher);
@@ -74,39 +63,31 @@ contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
     // make sure that the signer is authorized to mint NFTs
     require(hasRole(MINTER_ROLE, signer), "Signature invalid or unauthorized");
 
-    _updateLevel(voucher.tokenId,  voucher.level);
+    _updateMetadata(voucher);
 
-    emit MintmonLevelUpdate(voucher.tokenId,  voucher.level);
-
-  }
-
-  function imageAndLevelUpdate(NFTVoucher calldata voucher) public {
-
-    // make sure signature is valid and get the address of the signer
-    address signer = _verify(voucher);
-
-    // make sure that the signer is authorized to mint NFTs
-    require(hasRole(MINTER_ROLE, signer), "Signature invalid or unauthorized");
-
-    _updateImageAndLevel(voucher.tokenId,  voucher.image, voucher.level);
-
-    emit MintmonImageAndLevelUpdate(voucher.tokenId,  voucher.level, voucher.image);
+    emit MintmonMetadataUpdate(voucher.tokenId);
 
   }
+
 
   /// @notice Returns a hash of the given NFTVoucher, prepared using EIP712 typed data hashing rules.
   /// @param voucher An NFTVoucher to hash.
   function _hash(NFTVoucher calldata voucher) internal view returns (bytes32) {
     return _hashTypedDataV4(keccak256(abi.encode(
-      keccak256("NFTVoucher(uint256 tokenId,string name,string level,string image,string tp,string description)"),
-      voucher.tokenId,
-      keccak256(bytes(voucher.name)),
-      keccak256(bytes(voucher.level)),
-      keccak256(bytes(voucher.image)),
-      keccak256(bytes(voucher.tp)),
-      keccak256(bytes(voucher.description))
+        keccak256("NFTVoucher(uint256 tokenId,string name,string level,uint256 experience,string image,string tp,string description,string attack1,string attack2,string attack3,string attack4)"),
+        voucher.tokenId,
+        keccak256(bytes(voucher.name)),
+        keccak256(bytes(voucher.level)),
+        voucher.experience,
+        keccak256(bytes(voucher.image)),
+        keccak256(bytes(voucher.tp)),
+        keccak256(bytes(voucher.description)),
+        keccak256(bytes(voucher.attack1)),
+        keccak256(bytes(voucher.attack2)),
+        keccak256(bytes(voucher.attack3)),
+        keccak256(bytes(voucher.attack4))
     )));
-  }
+}
 
   /// @notice Returns the chain id of the current blockchain.
   /// @dev This is used to workaround an issue with ganache returning different values from the on-chain chainid() function and
@@ -122,7 +103,7 @@ contract Mintmons is MintmonsUriStorage, EIP712, AccessControl, Ownable {
   /// @notice Verifies the signature for a given NFTVoucher, returning the address of the signer.
   /// @dev Will revert if the signature is invalid. Does not verify that the signer is authorized to mint NFTs.
   /// @param voucher An NFTVoucher describing an unminted NFT.
-  function _verify(NFTVoucher calldata voucher) internal view returns (address) {
+  function _verify(NFTVoucher calldata voucher) public view returns (address) {
     bytes32 digest = _hash(voucher);
     return ECDSA.recover(digest, voucher.signature);
   }
